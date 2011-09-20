@@ -1,15 +1,15 @@
-require File.dirname(__FILE__) + '<%= ('/..'*controller_class_nesting_depth) + '/../spec_helper' %>'
+require File.dirname(__FILE__) + '/../spec_helper'
 
 # Be sure to include AuthenticatedTestHelper in spec/spec_helper.rb instead
 # Then, you can remove it from this and the units test.
 include AuthenticatedTestHelper
 
-describe <%= controller_class_name %>Controller do
-  fixtures        :<%= table_name %>
+describe SessionsController do
+  fixtures        :users
   before do 
-    @<%= file_name %>  = mock_<%= file_name %>
+    @user  = mock_user
     @login_params = { :login => 'quentin', :password => 'test' }
-    <%= class_name %>.stub!(:authenticate).with(@login_params[:login], @login_params[:password]).and_return(@<%= file_name %>)
+    User.stub!(:authenticate).with(@login_params[:login], @login_params[:password]).and_return(@user)
   end
   def do_create
     post :create, @login_params
@@ -29,12 +29,12 @@ describe <%= controller_class_name %>Controller do
               @ccookies.stub!(:[]).with(:auth_token).and_return(token_value)
               @ccookies.stub!(:delete).with(:auth_token)
               @ccookies.stub!(:[]=)
-              @<%= file_name %>.stub!(:remember_me) 
-              @<%= file_name %>.stub!(:refresh_token) 
-              @<%= file_name %>.stub!(:forget_me)
-              @<%= file_name %>.stub!(:remember_token).and_return(token_value) 
-              @<%= file_name %>.stub!(:remember_token_expires_at).and_return(token_expiry)
-              @<%= file_name %>.stub!(:remember_token?).and_return(has_request_token == :valid)
+              @user.stub!(:remember_me) 
+              @user.stub!(:refresh_token) 
+              @user.stub!(:forget_me)
+              @user.stub!(:remember_token).and_return(token_value) 
+              @user.stub!(:remember_token_expires_at).and_return(token_expiry)
+              @user.stub!(:remember_token?).and_return(has_request_token == :valid)
               if want_remember_me
                 @login_params[:remember_me] = '1'
               else 
@@ -44,24 +44,24 @@ describe <%= controller_class_name %>Controller do
             it "kills existing login"        do controller.should_receive(:logout_keeping_session!); do_create; end    
             it "authorizes me"               do do_create; controller.send(:authorized?).should be_true;   end    
             it "logs me in"                  do do_create; controller.send(:logged_in?).should  be_true  end    
-            it "greets me nicely"            do do_create; response.flash[:notice].should =~ /success/i   end
+            it "greets me nicely"            do do_create; flash[:notice].should =~ /success/i   end
             it "sets/resets/expires cookie"  do controller.should_receive(:handle_remember_cookie!).with(want_remember_me); do_create end
             it "sends a cookie"              do controller.should_receive(:send_remember_cookie!);  do_create end
             it 'redirects to the home page'  do do_create; response.should redirect_to('/')   end
             it "does not reset my session"   do controller.should_not_receive(:reset_session).and_return nil; do_create end # change if you uncomment the reset_session path
             if (has_request_token == :valid)
-              it 'does not make new token'   do @<%= file_name %>.should_not_receive(:remember_me);   do_create end
-              it 'does refresh token'        do @<%= file_name %>.should_receive(:refresh_token);     do_create end 
+              it 'does not make new token'   do @user.should_not_receive(:remember_me);   do_create end
+              it 'does refresh token'        do @user.should_receive(:refresh_token);     do_create end 
               it "sets an auth cookie"       do do_create;  end
             else
               if want_remember_me
-                it 'makes a new token'       do @<%= file_name %>.should_receive(:remember_me);       do_create end 
-                it "does not refresh token"  do @<%= file_name %>.should_not_receive(:refresh_token); do_create end
+                it 'makes a new token'       do @user.should_receive(:remember_me);       do_create end 
+                it "does not refresh token"  do @user.should_not_receive(:refresh_token); do_create end
                 it "sets an auth cookie"       do do_create;  end
               else 
-                it 'does not make new token' do @<%= file_name %>.should_not_receive(:remember_me);   do_create end
-                it 'does not refresh token'  do @<%= file_name %>.should_not_receive(:refresh_token); do_create end 
-                it 'kills user token'        do @<%= file_name %>.should_receive(:forget_me);         do_create end 
+                it 'does not make new token' do @user.should_not_receive(:remember_me);   do_create end
+                it 'does not refresh token'  do @user.should_not_receive(:refresh_token); do_create end 
+                it 'kills user token'        do @user.should_receive(:forget_me);         do_create end 
               end
             end
           end # inner describe
@@ -72,7 +72,7 @@ describe <%= controller_class_name %>Controller do
   
   describe "on failed login" do
     before do
-      <%= class_name %>.should_receive(:authenticate).with(anything(), anything()).and_return(nil)
+      User.should_receive(:authenticate).with(anything(), anything()).and_return(nil)
       login_as :quentin
     end
     it 'logs out keeping session'   do controller.should_receive(:logout_keeping_session!); do_create end
@@ -82,7 +82,7 @@ describe <%= controller_class_name %>Controller do
     it "doesn't send password back" do 
       @login_params[:password] = 'FROBNOZZ'
       do_create
-      response.should_not have_text(/FROBNOZZ/i)
+      response.should_not contain(/FROBNOZZ/i)
     end
   end
 
@@ -99,28 +99,16 @@ describe <%= controller_class_name %>Controller do
   
 end
 
-describe <%= controller_class_name %>Controller do
-  describe "route generation" do
-    it "should route the new <%= controller_controller_name %> action correctly" do
-      route_for(:controller => '<%= controller_controller_name %>', :action => 'new').should == "/login"
-    end
-    it "should route the create <%= controller_controller_name %> correctly" do
-      route_for(:controller => '<%= controller_controller_name %>', :action => 'create').should == "/<%= controller_routing_path %>"
-    end
-    it "should route the destroy <%= controller_controller_name %> action correctly" do
-      route_for(:controller => '<%= controller_controller_name %>', :action => 'destroy').should == "/logout"
-    end
-  end
-  
-  describe "route recognition" do
+describe SessionsController do
+  describe "route recognition and generation" do
     it "should generate params from GET /login correctly" do
-      params_from(:get, '/login').should == {:controller => '<%= controller_controller_name %>', :action => 'new'}
+      {:get => '/login'}.should route_to(:controller => 'sessions', :action => 'new')
     end
-    it "should generate params from POST /<%= controller_routing_path %> correctly" do
-      params_from(:post, '/<%= controller_routing_path %>').should == {:controller => '<%= controller_controller_name %>', :action => 'create'}
+    it "should generate params from POST /session correctly" do
+      {:post => '/session'}.should route_to(:controller => 'sessions', :action => 'create')
     end
-    it "should generate params from DELETE /<%= controller_routing_path %> correctly" do
-      params_from(:delete, '/logout').should == {:controller => '<%= controller_controller_name %>', :action => 'destroy'}
+    it "should generate params from DELETE /session correctly" do
+      {:delete => '/logout'}.should route_to(:controller => 'sessions', :action => 'destroy')
     end
   end
   
@@ -128,11 +116,11 @@ describe <%= controller_class_name %>Controller do
     before(:each) do
       get :new
     end
-    it "should route <%= controller_routing_name %>_path() correctly" do
-      <%= controller_routing_name %>_path().should == "/<%= controller_routing_path %>"
+    it "should route session_path() correctly" do
+      session_path().should == "/session"
     end
-    it "should route new_<%= controller_routing_name %>_path() correctly" do
-      new_<%= controller_routing_name %>_path().should == "/<%= controller_routing_path %>/new"
+    it "should route new_session_path() correctly" do
+      new_session_path().should == "/session/new"
     end
   end
   

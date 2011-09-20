@@ -81,7 +81,7 @@ module AuthenticatedSystem
     #
     # We can return to this location by calling #redirect_back_or_default.
     def store_location
-      session[:return_to] = request.request_uri
+      session[:return_to] = request.fullpath
     end
 
     # Redirect to the URI stored by the most recent store_location call or
@@ -122,7 +122,7 @@ module AuthenticatedSystem
     # Called from #current_<%= file_name %>.  Finaly, attempt to login by an expiring token in the cookie.
     # for the paranoid: we _should_ be storing <%= file_name %>_token = hash(cookie_token, request IP)
     def login_from_cookie
-      <%= file_name %> = cookies[:auth_token] && <%= class_name %>.find_by_remember_token(cookies[:auth_token].value)
+      <%= file_name %> = cookies[:auth_token] && <%= class_name %>.find_by_remember_token(cookies[:auth_token])
       if <%= file_name %> && <%= file_name %>.remember_token?
         self.current_<%= file_name %> = <%= file_name %>
         handle_remember_cookie! false # freshen cookie token (keeping date)
@@ -136,7 +136,7 @@ module AuthenticatedSystem
     def logout_keeping_session!
       # Kill server-side auth cookie
       @current_<%= file_name %>.forget_me if @current_<%= file_name %>.is_a? <%= class_name %>
-      @current_<%= file_name %> = false     # not logged in, and don't do it for me
+#      @current_<%= file_name %> = false     # not logged in, and don't do it for me
       kill_remember_cookie!     # Kill client-side auth cookie
       session[:<%= file_name %>_id] = nil   # keeps the session but kill our variable
       # explicitly kill any other session variables you set
